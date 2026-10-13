@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Elarsi</title>
+  <link rel="icon" type="image/png" href="elarsi-icon.png"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <div class="brandicon-wrap"><img class="brandicon" src="elarsi-icon.png" alt="Elarsi icon"/></div>
+      <div>
+        <h1>Elarsi <span class="version">1.1</span></h1>
+        <p>LRC timing studio · local and offline</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="revealProject" title="Reveal the most recently opened project file in Windows Explorer, if its source path is known."><svg class="folder-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/></svg><span>Project Source</span></button><button id="openProject" title="Open a saved Elarsi project. Reattach audio to resume playback.">Open Project</button>
+      <button id="saveProject" title="Save lyrics, timestamps, metadata, and queue selection to a project file. Audio is not embedded.">Save Project</button>
+      <button class="primary" id="exportLrc" title="Export timestamped lyrics as LRC. Untimed lines are excluded; validation warns before export.">Export LRC ↗</button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="file-slot" id="audioDrop" title="Drop an audio file here or choose Browse.">
+      <span class="tag">AUDIO</span>
+      <span id="audioName">Choose or drop an audio file</span>
+      <button class="small reveal-source" id="revealAudio" title="Reveal the original audio file in Windows Explorer. Available after using Browse."><svg class="folder-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/></svg></button><button class="small" id="chooseAudio" title="Select a song. Playback position is independent of lyric selection.">Browse</button>
+    </div>
+    <div class="file-slot" id="lyricsDrop" title="Drop a lyrics TXT or LRC here or choose Browse.">
+      <span class="tag">LYRICS</span>
+      <span id="lyricsName">Choose or drop TXT / LRC</span>
+      <button class="small reveal-source" id="revealLyrics" title="Reveal the original lyric file in Windows Explorer. Available after using Browse."><svg class="folder-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/></svg></button><button class="small" id="chooseLyrics" title="Import a TXT, standard LRC, or enhanced word-timed LRC file.">Browse</button>
+    </div>
+    <input id="audioFile" type="file" accept="audio/*,.mp3,.wav,.ogg,.flac,.m4a" hidden/>
+    <input id="lyricsFile" type="file" accept=".txt,.lrc,text/plain" hidden/>
+    <input id="projectFile" type="file" accept=".elarsi,.lyricsync,.json" hidden/>
+  </div>
+
+  <main>
+    <aside class="sidebar left-sidebar" aria-label="Song information and settings">
+      <div class="panel">
+        <h2>Song information</h2>
+        <label>Title
+          <input id="title" type="text" placeholder="Song title" title="Song title; exported as [ti:] metadata."/>
+        </label>
+        <label>Author / Artist
+          <input id="author" type="text" placeholder="Artist" title="Song artist; exported as [ar:] metadata."/>
+        </label>
+        <label>LRC metadata offset (ms)
+          <input id="metaOffset" type="number" step="1" value="0" title="Global [offset:] metadata in milliseconds. Does not rewrite stored timestamps."/>
+        </label>
+        <div class="callout">Metadata <code>[offset:]</code> is stored in the LRC header. It does not rewrite line or word timestamps.</div>
+      </div>
+
+      <div class="panel">
+        <h2>Output filenames</h2>
+        <p class="hint">Choose which imported filename is used when saving projects and exporting LRC files. Extensions are added automatically.</p>
+        <label>Filename source
+          <select id="filenameSource" title="Use the original audio filename or imported lyrics filename as the base for exported LRC and Elarsi project files.">
+            <option value="audio">Audio filename</option>
+            <option value="lyrics">Lyrics / LRC filename</option>
+          </select>
+        </label>
+        <div class="output-preview" id="outputPreview">Waiting for an audio or lyrics file</div>
+      </div>
+      <div class="panel">
+        <h2>Settings</h2>
+        <label>Stamp key
+          <button class="wide" id="remap" title="Click, then press your desired stamping key. Escape cancels.">Space</button>
+        </label>
+        <label>Export timestamp precision
+          <select id="precision" title="Choose 2 or 3 decimal places in exported timestamps.">
+            <option value="2">Hundredths (mm:ss.xx)</option>
+            <option value="3">Milliseconds (mm:ss.xxx)</option>
+          </select>
+        </label>
+        <label class="toggle-row" for="singleCorrection" title="Stay on the same queued lyric after stamping so it can be corrected again."><span>Single Correction</span><input id="singleCorrection" class="toggle-input" type="checkbox" role="switch" aria-label="Single Correction"/><span class="toggle-track" aria-hidden="true"><span class="toggle-thumb"></span></span></label>
+        <div class="callout">Space is remappable. Enter plays or pauses. Arrow Left / Right seek by 2s. Arrow Up / Down navigate the queue.</div>
+      </div>
+    </aside>
+
+    <section class="maincol">
+      <div class="panel player">
+        <div class="section-heading">
+          <div>
+            <h2>Audio player</h2>
+            <span class="hint">Seeking never changes the lyric queue</span>
+          </div>
+          <span class="tiny" id="playStatus">No audio loaded</span>
+        </div>
+        <canvas id="wave" height="116" title="Click the waveform to seek audio without changing the lyric queue."></canvas>
+        <div class="timeline">
+          <span id="timeNow">00:00.000</span>
+          <input id="seek" type="range" min="0" max="1000" value="0" title="Drag to seek without changing the lyric queue."/>
+          <span id="timeTotal">00:00.000</span>
+        </div>
+        <div class="player-controls">
+          <button id="back5" title="Rewind 5 seconds">↶ 5s</button>
+          <button class="play" id="playPause" title="Play or pause without changing the lyric queue.">▶ Play</button>
+          <button id="forward5" title="Forward 5 seconds">5s ↷</button>
+          <label class="speed">Speed
+            <select id="speed" title="Adjust playback speed without affecting timestamp positions.">
+              <option value="0.5">0.5×</option>
+              <option value="0.75">0.75×</option>
+              <option selected value="1">1×</option>
+              <option value="1.25">1.25×</option>
+              <option value="1.5">1.5×</option>
+            </select>
+          </label>
+          <span class="spacer"></span>
+          <span class="hint" id="audioNote">Space stamps the queued lyric</span>
+        </div>
+        <audio id="audio" preload="metadata"></audio>
+      </div>
+
+      <div class="panel editor">
+        <div class="section-heading">
+          <div>
+            <h2>Synchronization</h2>
+            <span class="hint">Queue selection and audio playback are independent</span>
+          </div>
+          <span id="progress">0 of 0 timed</span>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-mode="line" title="Timestamp entire lyric lines with [mm:ss.xx].">Line Edit</button>
+          <button class="tab" data-mode="word" title="Timestamp each word with <mm:ss.xx>; first word can initialize line timing.">Word Edit</button>
+          <button class="tab" data-mode="playback" title="Read-only synchronized lyric preview. Playback follows saved timestamps.">Playback Preview</button>
+        </div>
+        <div id="editView">
+          <div class="lyric-block current">
+            <div class="lyric-label">CURRENT <span id="currentIndex"></span></div>
+            <div class="timestamp" id="currentTime">&nbsp;</div>
+            <div class="lyric-text muted" id="currentText" title="The preceding lyric or word in the queue; shows its saved timestamp above.">START</div>
+          </div>
+          <div class="lyric-block queued" id="queueScroll" title="Scroll to select the queued lyric or word; the audio playhead does not move.">
+            <div class="lyric-label">NEXT · READY TO STAMP <span id="nextIndex"></span></div>
+            <div class="timestamp" id="nextTime">Not timestamped</div>
+            <div class="lyric-text" id="nextText" title="The queued lyric or word that receives the next stamp.">Add a lyrics file to begin</div>
+            <div class="words-context" id="wordContext"></div>
+          </div>
+          <div class="stampbar">
+            <button id="prevQueue" title="Queue previous lyric or word; audio position stays the same.">↑ Previous</button>
+            <button class="stamp" id="stamp" title="Stamp the current audio time onto NEXT, then advance unless Single Correction is active.">SPACE · Stamp Next</button>
+            <button id="nextQueue" title="Queue next lyric or word; audio position stays the same.">Next ↓</button>
+          </div>
+          <div class="edit-footer">
+            <span id="shortcutHint">Change stamp key in Settings</span>
+            <div>
+              <button id="undo" title="Undo the last document edit, including a full mass adjustment.">↶ Undo</button>
+              <button id="redo" title="Redo your last undone document edit.">↷ Redo</button>
+            </div>
+          </div>
+        </div>
+        <div id="previewView" hidden>
+          <div class="previewlabel">NOW PLAYING</div>
+          <div class="previewCurrent" id="previewCurrent">Load a timed LRC to preview</div>
+          <div class="previewNext" id="previewNext"></div>
+          <div class="previewFooter">Read-only mode · playback controls remain available</div>
+        </div>
+      </div>
+
+      <div class="panel lyrics-panel">
+        <div class="section-heading">
+          <div>
+            <h2>Lyrics</h2>
+            <span class="hint">Click a lyric to queue it, without seeking the audio</span>
+          </div>
+          <div>
+            <button id="addLine" title="Insert a lyric at the current queue position.">+ Line</button>
+            <button id="removeLine" title="Delete the selected lyric.">Remove</button>
+          </div>
+        </div>
+        <div class="lyric-list" id="lyricList" title="Click a lyric to queue it. Double-click lyric text or timestamps to edit. This never seeks audio.">
+          <div class="empty">Import a lyric text file or LRC file to get started.</div>
+        </div>
+        <div class="list-footer">
+          <span>Double-click a lyric to edit text · timestamps can be edited directly</span>
+          <button id="sortWarning" hidden title="Navigate to the first line-order conflict without moving audio.">Check ordering</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="sidebar right-sidebar" aria-label="Timestamp adjustments and document status">
+      <div class="panel" id="adjustPanel">
+        <h2>Adjust timestamps</h2>
+        <p class="hint">Permanent document-wide changes. Line and word timestamps are independent.</p>
+        <label>Line offset (milliseconds)
+          <input id="lineOffset" type="number" step="1" value="150" title="Add or subtract milliseconds from only the line [ ] timestamps."/>
+        </label>
+        <label>Word offset (milliseconds)
+          <input id="wordOffset" type="number" step="1" value="-75" title="Add or subtract milliseconds from only word < > timestamps."/>
+        </label>
+        <div class="counts" id="adjustCounts">0 line timestamps · 0 word timestamps</div>
+        <div class="offsetPreview">
+          <div class="smallcaps">BEFORE</div>
+          <code id="offsetBefore" title="Example of a timestamped line before mass adjustment.">No timed lyrics</code>
+          <div class="smallcaps afterlabel">AFTER</div>
+          <code id="offsetAfter" title="Preview of the same line after applying offsets, before committing.">No timed lyrics</code>
+        </div>
+        <div class="warning" id="offsetWarning" hidden></div>
+        <button class="wide" id="applyOffset" title="Apply both displayed adjustments. One Undo reverses the entire operation.">Apply Adjustments</button>
+        <p class="hint">One Apply equals one Undo operation. Negative resulting timestamps are blocked.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Document status</h2>
+        <div class="validation" id="validation" title="Expand issue groups for individual errors and Go to navigation.">No lyrics loaded.</div>
+        <button class="wide" id="resetQueue" title="Queue the first lyric without moving audio.">Queue First Lyric</button>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <span id="footerState">Ready · Nothing uploaded anywhere</span>
+    <button id="quit" title="Exit the local app and shut down its server.">Quit Elarsi</button>
+  </footer>
+</div>
+<div id="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>
